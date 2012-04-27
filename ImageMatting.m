@@ -1,22 +1,34 @@
-imgIn = imread('images/toy.jpg');
+imgIn= imread('images/toy.jpg');
 imgTri = imread('images/trimap.png');
 %save I;
-subplot(2,2,1), imshow(imgIn);
-subplot(2,2,2), imshow(imgTri);
+subplot(4,3,1), imshow(imgIn);
+subplot(4,3,2), imshow(imgTri);
 %O = zeros(size(imgIn));
 %for n = 1:size(imgTri),
 %	if imgTri(n) < 15
 %		O(n) = 1;
 %	end
 %end
-BMask = imgTri < 15;
-B = imgIn .* BMask;
-subplot(2,2,3), imshow(B);
-FMask = imgTri > 240;
-F = imgIn .* FMask;
-subplot(2,2,4), imshow(F);
-UMask = not(or(FMask, BMask));
-subplot(2,2,2), imshow(UMask);
 
-[bmean bVar] = MaskedGaussian(imgIn, BMask)
-[fmean fVar] = MaskedGaussian(imgIn, FMask)
+% Foreground
+FMask = imgTri > 242;
+F = imgIn .* FMask;
+[fMean fVar] = MaskedGaussian(imgIn, FMask)
+subplot(4,3,4), imshow(FMask);
+subplot(4,3,7), imshow(F);
+
+% Background
+BMask = imgTri < 13;
+B = imgIn .* BMask;
+[bMean bVar] = MaskedGaussian(imgIn, BMask)
+subplot(4,3,5), imshow(BMask);
+subplot(4,3,8), imshow(B);
+
+% Undefined Region
+UMask = not(or(FMask, BMask));
+U = imgIn .* UMask;
+subplot(4,3,6), imshow(UMask);
+subplot(4,3,9), imshow(U);
+
+
+
