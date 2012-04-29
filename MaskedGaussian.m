@@ -1,31 +1,46 @@
-function [mm mv] = MaskedGaussian(A, Mask)
-sum = int32(0);
+function [mm McInv LX] = MaskedGaussian(A, Mask)
+summ = int32(0);
 num = int32(0);
 %mm = zeros(size(A,3));
-for i = 1:size(A,3)
-	B = A(:,:,i);
-	C = B(find( Mask == 1 ));
-	mm(i) = mean(C);
-	mv(i) = var(C);
-end
+B = A(find( Mask == 1 ));
+mm = mean(B);
+V = double(A)-mm;
+clear B;
+V = V*(V.');
+Mc = V/size(V(:),1);
+
+%need the inverse of Mc
+McInv = inv(Mc);
+clear Mc;
+
+% Find prior probability L(X)
+XDiff = double(A.*Mask - mm);
+%size(XDiff)
+%size(McInv)
+T = -XDiff.' * McInv;
+%size(T)
+LX = T * XDiff / 2;
+%size(LX)
+
+
 	% if Mask(i,j) > 0
-		% sum = sum + int32(A(i,j,k));
+		% summ = summ + int32(A(i,j,k));
 		% num = num + int32(1);
 	% end
 % end
-% sum
+% summ
 % for k = size(A,3)
-	% sum = 0;
+	% summ = 0;
 	% num = 0;
 	% for j = 1:size(A,2),
 		% for i = 1:size(A,1),
 			% if Mask(i,j) > 0
-				% sum = sum + int32(A(i,j,k));
+				% summ = summ + int32(A(i,j,k));
 				% num = num + int32(1);
 			% end
 		% end
 	% end
-	% mm(k) = double(sum) / double(num);	
+	% mm(k) = double(summ) / double(num);	
 	
 	% mv(k) = double(0);
 	% for j = 1:size(A,2),

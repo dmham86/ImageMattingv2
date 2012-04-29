@@ -1,34 +1,94 @@
-imgIn= imread('images/toy.jpg');
-imgTri = imread('images/trimap.png');
+clear;
+C= imread('images/toy.jpg'); % Observed image
+alpha = double(imread('images/trimap.png'))/double(255.0); %Trimap
 %save I;
-subplot(4,3,1), imshow(imgIn);
-subplot(4,3,2), imshow(imgTri);
+subplot(4,3,1), imshow(C);
+subplot(4,3,2), imshow(alpha);
 %O = zeros(size(imgIn));
 %for n = 1:size(imgTri),
 %	if imgTri(n) < 15
 %		O(n) = 1;
 %	end
 %end
+% initialize sigmac to .01
+sigmac = .01;
+sigmac2 = sigmac*sigmac;
 
-% Foreground
-FMask = imgTri > 242;
-F = imgIn .* FMask;
-[fMean fVar] = MaskedGaussian(imgIn, FMask)
+
+FMask = alpha > .95;
 subplot(4,3,4), imshow(FMask);
-subplot(4,3,7), imshow(F);
-
-% Background
-BMask = imgTri < 13;
-B = imgIn .* BMask;
-[bMean bVar] = MaskedGaussian(imgIn, BMask)
+BMask = alpha < .05;
 subplot(4,3,5), imshow(BMask);
+
+F = C .* FMask;
+B = C .* BMask;
+subplot(4,3,7), imshow(F);
 subplot(4,3,8), imshow(B);
 
-% Undefined Region
+% TODO: Remove the 4 lines below if not drawing the unknown region
 UMask = not(or(FMask, BMask));
-U = imgIn .* UMask;
+U = C .* UMask;
 subplot(4,3,6), imshow(UMask);
 subplot(4,3,9), imshow(U);
 
+%calculate L(C|F,B,alpha)
+LT = abs(double(C) - alpha.*double(F) - (1-alpha).*double(B));
+LCFBa = -((LT(:,:,1).')*LT(:,:,1))/(sigmac);
+LCFBaT = -((LT(:,:,2).')*LT(:,:,2))/(sigmac);
+LCFBa = cat(3, LCFBa, LCFBaT);
+LCFBaT = -((LT(:,:,3).')*LT(:,:,3))/(sigmac);
+LCFBa = cat(3, LCFBa, LCFBaT);
+'LCFBa'
+size(LCFBa)
+%imshow(-LCFBa);
+
+% Foreground
+[fMean fCovInv LF] = MaskedGaussian(C(:,:,1), alpha);
+[fMean covX LX] = MaskedGaussian(C(:,:,2), alpha);
+LF = cat(3, LF, LX);
+fCovInv = cat(3, fCovInv, covX);
+[fMean covX LX] = MaskedGaussian(C(:,:,3), alpha);
+LF = cat(3, LF, LX);
+fCovInv = cat(3, fCovInv, covX);
+'LF'
+%size(LF)
+%size(fCovInv)
+
+% Background
+[bMean bCovInv LB] = MaskedGaussian(C(:,:,1), 1-alpha);
+[bMean covX    LX] = MaskedGaussian(C(:,:,2), 1-alpha);
+LB = cat(3, LB, LX);
+bCovInv = cat(3, bCovInv, covX);
+[bMean covX    LX] = MaskedGaussian(C(:,:,3), 1-alpha);
+LB = cat(3, LB, LX);
+bCovInv = cat(3, bCovInv, covX); 
+size(bCovInv)
+
+subplot(4,3,10), imshow(LF);
+subplot(4,3,11), imshow(LB);
+
+% try to clear some memory
+clear LX covX
+
+FBaC = LCFBa - LF - LB;
+
+I = eye(3);
+alpha2 = alpha*alpha.';
+alpha2I = cat(3,alpha2,alpha2,alpha2);
+clear alpha2;
+
+map11 = fCovInv + alpha2I/sigmac2;
 
 
+%calculate alpha
+% subplot(4,3,12), imshow(C - F);
+ T = double(dot((C - F),(C - B),1));
+ size(T)
+ T = sum(T,2)
+ mag = abs(F-B);
+ mag = mag.*mag;
+ alpha = double(double(mag(:,:,2)) * 1/mag(1));
+ 
+ subplot(4,3,12), imshow(alpha)
+
+% cd Documents/Classes/CISC-849/ImageMatting
