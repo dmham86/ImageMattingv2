@@ -56,28 +56,42 @@ fCovInv = cat(3, fCovInv, covX);
 
 % Background
 [bMean bCovInv LB] = MaskedGaussian(C(:,:,1), 1-alpha);
-[bMean covX    LX] = MaskedGaussian(C(:,:,2), 1-alpha);
+[xMean covX    LX] = MaskedGaussian(C(:,:,2), 1-alpha);
 LB = cat(3, LB, LX);
 bCovInv = cat(3, bCovInv, covX);
-[bMean covX    LX] = MaskedGaussian(C(:,:,3), 1-alpha);
+bMean = cat(3, bMean, xMean);
+[xMean covX    LX] = MaskedGaussian(C(:,:,3), 1-alpha);
 LB = cat(3, LB, LX);
 bCovInv = cat(3, bCovInv, covX); 
-size(bCovInv)
+bMean = cat(3, bMean, xMean);
 
 subplot(4,3,10), imshow(LF);
 subplot(4,3,11), imshow(LB);
 
 % try to clear some memory
-clear LX covX
+clear LX covX xMean
 
 FBaC = LCFBa - LF - LB;
 
 I = eye(3);
-alpha2 = alpha*alpha.';
-alpha2I = cat(3,alpha2,alpha2,alpha2);
-clear alpha2;
+%alpha = cat(3, alpha, alpha, alpha);
 
-map11 = fCovInv + alpha2I/sigmac2;
+for i = 1:size(alpha,1)
+	for j = 1:size(alpha,2)
+		al = alpha(i,j);
+		map11 = fCovInv(i,j,:)(:) + I*(al^2/sigmac2);
+		map12 = I*al*(1-al)/sigmac2;
+		map22 = bCovInv(i,j,:) + I*(1-al)^2/sigmac2;
+		MAP = [map11 map12; map12 map22]
+		pause
+		
+		sol1 = fCovInv(i,j,:)(:)*fMean + C(i,j,:)(:)*al/sigmac2;
+		sol2 = fCovInv(i,j,:)(:)*bMean + C(i,j,:)(:)*al/sigmac2;
+		
+		
+	end
+end
+
 
 
 %calculate alpha
