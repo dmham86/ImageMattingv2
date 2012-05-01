@@ -1,27 +1,43 @@
-function [mm McInv LX] = MaskedGaussian(A, Mask)
-summ = int32(0);
-num = int32(0);
-%mm = zeros(size(A,3));
-B = A(find( Mask == 1 ));
-mm = mean(B);
-V = double(A)-mm;
-clear B;
-V = V*(V.');
-Mc = V/size(V(:),1);
+function [Mean CovInv] = MaskedGaussian(A, Mask)
+Mean = [0 0 0];
+IND = find( Mask == 1 )(:);
+size(IND)
+for i = 1:size(A,3)
+	B = A(:,:,i)(IND);
+	Mean(i) = double(mean(B));
+end
+Mean = Mean.'
 
+%for k = 1:size(A,3)
+Cov=zeros(size(A,3));
+for i = 1:size(A,1)
+	for j = 1:size(A,2)
+		if(Mask(i,j) > 0)
+			Diff = double(A(i,j,:)(:)) - Mean;
+			Cov = Cov + Diff * Diff.';
+		end
+	end
+end
+Cov = Cov * 1/(size(A,1)*size(A,2));
 %need the inverse of Mc
-McInv = inv(Mc);
-clear Mc;
+CovInv = inv(Cov);
 
 % Find prior probability L(X)
-XDiff = double(A.*Mask - mm);
-%size(XDiff)
-%size(McInv)
-T = -XDiff.' * McInv;
-%size(T)
-LX = T * XDiff / 2;
+% XDiff = double(A.*Mask - mm);
+% size(XDiff)
+% size(McInv)
+% T = -XDiff.' * McInv;
+% size(T)
+% LX = T * XDiff / 2;
 %size(LX)
 
+% [fMean fCovInv LF] = MaskedGaussian(C(:,:,1), alpha);
+% [fMean covX LX] = MaskedGaussian(C(:,:,2), alpha);
+% LF = cat(3, LF, LX);
+% fCovInv = cat(3, fCovInv, covX);
+% [fMean covX LX] = MaskedGaussian(C(:,:,3), alpha);
+% LF = cat(3, LF, LX);
+% fCovInv = cat(3, fCovInv, covX);
 
 	% if Mask(i,j) > 0
 		% summ = summ + int32(A(i,j,k));

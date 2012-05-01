@@ -1,9 +1,9 @@
 clear;
 C= imread('images/toy.jpg'); % Observed image
-alpha = double(imread('images/trimap.png'))/double(255.0); %Trimap
+trimap = double(imread('images/trimap.png'))/double(255.0); %Trimap
 %save I;
 subplot(4,3,1), imshow(C);
-subplot(4,3,2), imshow(alpha);
+subplot(4,3,2), imshow(trimap);
 %O = zeros(size(imgIn));
 %for n = 1:size(imgTri),
 %	if imgTri(n) < 15
@@ -15,9 +15,9 @@ sigmac = .01;
 sigmac2 = sigmac*sigmac;
 
 
-FMask = alpha > .95;
+FMask = trimap > .95;
 subplot(4,3,4), imshow(FMask);
-BMask = alpha < .05;
+BMask = trimap < .05;
 subplot(4,3,5), imshow(BMask);
 
 F = C .* FMask;
@@ -32,63 +32,53 @@ subplot(4,3,6), imshow(UMask);
 subplot(4,3,9), imshow(U);
 
 %calculate L(C|F,B,alpha)
-LT = abs(double(C) - alpha.*double(F) - (1-alpha).*double(B));
-LCFBa = -((LT(:,:,1).')*LT(:,:,1))/(sigmac);
-LCFBaT = -((LT(:,:,2).')*LT(:,:,2))/(sigmac);
-LCFBa = cat(3, LCFBa, LCFBaT);
-LCFBaT = -((LT(:,:,3).')*LT(:,:,3))/(sigmac);
-LCFBa = cat(3, LCFBa, LCFBaT);
-'LCFBa'
-size(LCFBa)
+% LT = abs(double(C) - alpha.*double(F) - (1-alpha).*double(B));
+% LCFBa = -((LT(:,:,1).')*LT(:,:,1))/(sigmac);
+% LCFBaT = -((LT(:,:,2).')*LT(:,:,2))/(sigmac);
+% LCFBa = cat(3, LCFBa, LCFBaT);
+% LCFBaT = -((LT(:,:,3).')*LT(:,:,3))/(sigmac);
+% LCFBa = cat(3, LCFBa, LCFBaT);
+% 'LCFBa'
+% size(LCFBa)
 %imshow(-LCFBa);
 
 % Foreground
-[fMean fCovInv LF] = MaskedGaussian(C(:,:,1), alpha);
-[fMean covX LX] = MaskedGaussian(C(:,:,2), alpha);
-LF = cat(3, LF, LX);
-fCovInv = cat(3, fCovInv, covX);
-[fMean covX LX] = MaskedGaussian(C(:,:,3), alpha);
-LF = cat(3, LF, LX);
-fCovInv = cat(3, fCovInv, covX);
-'LF'
-%size(LF)
-%size(fCovInv)
+[fMean fCovInv] = MaskedGaussian(C, FMask)
 
 % Background
-[bMean bCovInv LB] = MaskedGaussian(C(:,:,1), 1-alpha);
-[xMean covX    LX] = MaskedGaussian(C(:,:,2), 1-alpha);
-LB = cat(3, LB, LX);
-bCovInv = cat(3, bCovInv, covX);
-bMean = cat(3, bMean, xMean);
-[xMean covX    LX] = MaskedGaussian(C(:,:,3), 1-alpha);
-LB = cat(3, LB, LX);
-bCovInv = cat(3, bCovInv, covX); 
-bMean = cat(3, bMean, xMean);
+[bMean bCovInv] = MaskedGaussian(C, BMask)
 
-subplot(4,3,10), imshow(LF);
-subplot(4,3,11), imshow(LB);
-
-% try to clear some memory
-clear LX covX xMean
-
-FBaC = LCFBa - LF - LB;
 
 I = eye(3);
-%alpha = cat(3, alpha, alpha, alpha);
+alpha = UMask*.5;
 
 for i = 1:size(alpha,1)
 	for j = 1:size(alpha,2)
-		al = alpha(i,j);
-		map11 = fCovInv(i,j,:)(:) + I*(al^2/sigmac2);
-		map12 = I*al*(1-al)/sigmac2;
-		map22 = bCovInv(i,j,:) + I*(1-al)^2/sigmac2;
-		MAP = [map11 map12; map12 map22]
-		pause
-		
-		sol1 = fCovInv(i,j,:)(:)*fMean + C(i,j,:)(:)*al/sigmac2;
-		sol2 = fCovInv(i,j,:)(:)*bMean + C(i,j,:)(:)*al/sigmac2;
-		
-		
+		if(UMask(i,j))
+			al = alpha(i,j);
+			c = squeeze(C(i,j,:));
+			map11 = fCovInv + I*(al^2/sigmac2);
+			map12 = I*al*(1-al)/sigmac2;
+			map22 = bCovInv + I*((1-al)^2/sigmac2);
+			MAP = [map11 map12; map12 map22];
+			
+			sol1 = double(fCovInv*fMean);
+			sol1 = sol1 + double(c)*al/sigmac2;
+			sol2 = double(bCovInv*bMean);
+			sol2 = sol2 + double(c)*(1-al)/sigmac2;
+			SOL = [sol1; sol2];
+			
+			T = MAP\SOL;
+			f = uint8(T(1:3));
+			b = uint8(T(4:6));
+			
+			CF = c - f;
+			CB = c - b;
+			T = double(dot(CF,CB,1))
+			
+			mag = norm(double(f-b))
+			alpha(i,j) = T/mag^2;
+		end
 	end
 end
 
@@ -96,13 +86,17 @@ end
 
 %calculate alpha
 % subplot(4,3,12), imshow(C - F);
- T = double(dot((C - F),(C - B),1));
- size(T)
- T = sum(T,2)
- mag = abs(F-B);
- mag = mag.*mag;
- alpha = double(double(mag(:,:,2)) * 1/mag(1));
- 
- subplot(4,3,12), imshow(alpha)
+subplot(4,3,12), imshow(alpha)
+subplot(4,3,10), imshow(F);
+subplot(4,3,11), imshow(B);
 
+pause
+
+subplot(4,3,10), imshow(C-F);
+subplot(4,3,11), imshow(C-B);
+
+pause
+
+subplot(4,3,10), imshow(F.*alpha);
+subplot(4,3,11), imshow(B.*alpha);
 % cd Documents/Classes/CISC-849/ImageMatting
