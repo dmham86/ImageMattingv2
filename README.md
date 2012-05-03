@@ -10,3 +10,6 @@ background. There are visual artifacts that remain in the final
 image. They can be seen on the foreground and on the new 
 background. However, it is most clear on the alpha matte. More
 iterations clear up the results some.
+
+As a side note, I highly recommend Octave to anyone who can not 
+get a copy of Matlab.
