@@ -1,102 +1,90 @@
 clear;
-C= imread('images/toy.jpg'); % Observed image
+startTime = cputime;
+
+%set the output image format
+imgRows = 2;
+imgCols = 3;
+cPos = 1; triPos = 2; aPos = 3;
+fmPos = 4; bmPos = 5; umPos = 6;
+fiPos = 4; biPos = 5; uiPos = 6;
+fPos = 4; bPos = 5; compositePos = 6;
+
+
+C= double(imread('images/toy.jpg'))/double(255.0); % Observed image
 trimap = double(imread('images/trimap.png'))/double(255.0); %Trimap
 %save I;
-subplot(4,3,1), imshow(C);
-subplot(4,3,2), imshow(trimap);
-%O = zeros(size(imgIn));
-%for n = 1:size(imgTri),
-%	if imgTri(n) < 15
-%		O(n) = 1;
-%	end
-%end
-% initialize sigmac to .01
+subplot(imgRows, imgCols,cPos), imshow(C);
+subplot(imgRows, imgCols,triPos), imshow(trimap);
+
 sigmac = .01;
 sigmac2 = sigmac*sigmac;
 
 
 FMask = trimap > .95;
-subplot(4,3,4), imshow(FMask);
+subplot(imgRows, imgCols,fmPos), imshow(FMask);
 BMask = trimap < .05;
-subplot(4,3,5), imshow(BMask);
+subplot(imgRows, imgCols,bmPos), imshow(BMask);
 
 F = C .* FMask;
 B = C .* BMask;
-subplot(4,3,7), imshow(F);
-subplot(4,3,8), imshow(B);
+subplot(imgRows, imgCols,fiPos), imshow(F);
+subplot(imgRows, imgCols,biPos), imshow(B);
 
-% TODO: Remove the 4 lines below if not drawing the unknown region
+% unknown region
 UMask = not(or(FMask, BMask));
 U = C .* UMask;
-subplot(4,3,6), imshow(UMask);
-subplot(4,3,9), imshow(U);
+subplot(imgRows, imgCols,umPos), imshow(UMask);
+subplot(imgRows, imgCols,uiPos), imshow(U);
 
-%calculate L(C|F,B,alpha)
-% LT = abs(double(C) - alpha.*double(F) - (1-alpha).*double(B));
-% LCFBa = -((LT(:,:,1).')*LT(:,:,1))/(sigmac);
-% LCFBaT = -((LT(:,:,2).')*LT(:,:,2))/(sigmac);
-% LCFBa = cat(3, LCFBa, LCFBaT);
-% LCFBaT = -((LT(:,:,3).')*LT(:,:,3))/(sigmac);
-% LCFBa = cat(3, LCFBa, LCFBaT);
-% 'LCFBa'
-% size(LCFBa)
-%imshow(-LCFBa);
+% Foreground mean and covariance
+[fMean fCovInv] = MaskedGaussian(C, FMask);
 
-% Foreground
-[fMean fCovInv] = MaskedGaussian(C, FMask)
+% Background mean and cov
+[bMean bCovInv] = MaskedGaussian(C, BMask);
 
-% Background
-[bMean bCovInv] = MaskedGaussian(C, BMask)
+Isig = double(eye(3))/sigmac2
+alpha = FMask + UMask*.5;
 
+sol1a = double(fCovInv*fMean);
+sol2a = double(bCovInv*bMean);
 
-I = eye(3);
-alpha = UMask*.5;
+for k = 1:10
+	for i = 1:size(alpha,1)
+		for j = 1:size(alpha,2)
+			if(UMask(i,j))
+				al = alpha(i,j);
+				c = squeeze(C(i,j,:));
 
-for i = 1:size(alpha,1)
-	for j = 1:size(alpha,2)
-		if(UMask(i,j))
-			al = alpha(i,j);
-			c = squeeze(C(i,j,:));
-			map11 = fCovInv + I*(al^2/sigmac2);
-			map12 = I*al*(1-al)/sigmac2;
-			map22 = bCovInv + I*((1-al)^2/sigmac2);
-			MAP = [map11 map12; map12 map22];
-			
-			sol1 = double(fCovInv*fMean);
-			sol1 = sol1 + double(c)*al/sigmac2;
-			sol2 = double(bCovInv*bMean);
-			sol2 = sol2 + double(c)*(1-al)/sigmac2;
-			SOL = [sol1; sol2];
-			
-			T = MAP\SOL;
-			f = uint8(T(1:3));
-			b = uint8(T(4:6));
-			
-			CF = c - f;
-			CB = c - b;
-			T = double(dot(CF,CB,1))
-			
-			mag = norm(double(f-b))
-			alpha(i,j) = T/mag^2;
+				map11 = fCovInv + Isig*(al^2);
+				map12 = Isig*al*(1-al);
+				map22 = bCovInv + Isig*((1-al)^2);
+				MAP = [map11 map12; map12 map22];
+				
+				sol1 = sol1a + double(c)*al/sigmac2;
+				sol2 = sol2a + double(c)*(1-al)/sigmac2;
+				SOL = [sol1; sol2];
+				
+				T = MAP\SOL;
+				f = T(1:3);
+				F(i,j,:) = f;
+				b = T(4:6);
+				B(i,j,:) = b;
+				
+				CB = c - b;
+				FB = f - b;
+				T = double(dot(CB,FB,1));
+				mag = norm(FB);
+				alpha(i,j) = max(min(T/(mag^2),1),-1);
+			end
 		end
 	end
 end
+subplot(imgRows, imgCols, aPos), imshow(alpha);
+subplot(imgRows, imgCols, fPos), imshow(F.*(alpha));
+subplot(imgRows, imgCols, bPos), imshow(B.*(1-alpha));
 
+%Put the foreground over the new background image
+nback = double(imread('images/bookshelf.jpg'))/double(255.0);
+subplot(imgRows, imgCols, compositePos), imshow(F.*(alpha) + nback.*(1-alpha));
 
-
-%calculate alpha
-% subplot(4,3,12), imshow(C - F);
-subplot(4,3,12), imshow(alpha)
-subplot(4,3,10), imshow(F);
-subplot(4,3,11), imshow(B);
-
-pause
-
-subplot(4,3,10), imshow(C-F);
-subplot(4,3,11), imshow(C-B);
-
-pause
-
-subplot(4,3,10), imshow(F.*alpha);
-subplot(4,3,11), imshow(B.*alpha);
-% cd Documents/Classes/CISC-849/ImageMatting
+totalTime = cputime - startTime
